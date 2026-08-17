@@ -8,8 +8,8 @@ node_modules/
 /playwright/.auth/
 
 #env File
-config/env.*
-!config/env.example
+config/.env.*
+!config/.env.example
 
 
 allure-results/
