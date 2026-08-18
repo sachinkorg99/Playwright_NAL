@@ -1,10 +1,11 @@
 # ═══════════════════════════════════════════════════════════════
-# FILE: .github/workflows/master-pipeline.yml
+# FILE: .github/workflows/master-docker-pipeline.yml
 # REPO: naveenanimation20/OpenCartWebAPIFramework
 # DEV REPO: jglick/simple-maven-project-with-tests
+# Tests run inside Docker containers
 # ═══════════════════════════════════════════════════════════════
 
-name: e2e CI/CD Pipeline
+name: e2e CI/CD Pipeline (Docker)
 
 on:
   workflow_dispatch:
@@ -57,67 +58,80 @@ jobs:
           retention-days: 30
 
   # ═════════════════════════════════════════════════════
-  # STEP 2: DEPLOY DEV + SANITY TESTS
+  # STEP 2: BUILD DOCKER IMAGE
   # ═════════════════════════════════════════════════════
-  deploy-dev:
-    name: Deploy to DEV
+  docker-build:
+    name: Build Docker Image
     needs: build
     runs-on: ubuntu-latest
-    steps:
-      - name: Deploy to DEV
-        run: echo "Deployed to DEV ✅"
-
-  sanity-dev:
-    name: DEV - Sanity Tests
-    needs: deploy-dev
-    runs-on: ubuntu-latest
-    environment: dev
     steps:
       - name: Checkout QA repo
         uses: actions/checkout@v4
         with:
           repository: naveenanimation20/OpenCartWebAPIFramework
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Build Docker Image
+        run: |
+          echo "========================================="
+          echo "  Building Playwright Docker Image"
+          echo "========================================="
+          docker build -t pw-framework .
+
+      - name: Save Docker Image
+        run: docker save pw-framework -o pw-framework.tar
+
+      - name: Upload Docker Image
+        uses: actions/upload-artifact@v4
         with:
-          node-version: 24
-          cache: 'npm'
+          name: docker-image
+          path: pw-framework.tar
+          retention-days: 1
 
-      - name: Cache Playwright browsers
-        id: pw-cache-dev
-        uses: actions/cache@v4
+  # ═════════════════════════════════════════════════════
+  # STEP 3: DEPLOY DEV + SANITY TESTS
+  # ═════════════════════════════════════════════════════
+  deploy-dev:
+    name: Deploy to DEV
+    needs: docker-build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Deploy to DEV
+        run: echo "Deployed to DEV ✅"
+
+  sanity-dev:
+    name: DEV - Sanity Tests (Docker)
+    needs: deploy-dev
+    runs-on: ubuntu-latest
+    environment: dev
+    steps:
+      - name: Download Docker Image
+        uses: actions/download-artifact@v4
         with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
+          name: docker-image
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        if: steps.pw-cache-dev.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright OS deps only
-        if: steps.pw-cache-dev.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      - name: Load Docker Image
+        run: docker load -i pw-framework.tar
 
       - name: Run Sanity Tests on DEV
         run: |
           echo "========================================="
-          echo "  Running SANITY @smoke on DEV"
+          echo "  Running SANITY @smoke on DEV (Docker)"
           echo "========================================="
-          npx playwright test --project=chromium --grep @smoke
-        env:
-          ENV: dev
-          BASE_URL: ${{ secrets.BASE_URL }}
-          USERNAME: ${{ secrets.USERNAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          GRANT_TYPE: ${{ secrets.GRANT_TYPE }}
+          mkdir -p reports allure-results
+          docker run --rm \
+            -e CI=true \
+            -e ENV=dev \
+            -e BASE_URL=${{ secrets.BASE_URL }} \
+            -e USERNAME=${{ secrets.USERNAME }} \
+            -e PASSWORD=${{ secrets.PASSWORD }} \
+            -e API_BASE_URL=${{ secrets.API_BASE_URL }} \
+            -e API_TOKEN=${{ secrets.API_TOKEN }} \
+            -e OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }} \
+            -e OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }} \
+            -e GRANT_TYPE=${{ secrets.GRANT_TYPE }} \
+            -v ${{ github.workspace }}/reports:/app/reports \
+            -v ${{ github.workspace }}/allure-results:/app/allure-results \
+            pw-framework npx playwright test --project=chromium --grep @smoke
 
       - name: Generate Allure Report
         if: always()
@@ -142,7 +156,7 @@ jobs:
           retention-days: 30
 
   # ═════════════════════════════════════════════════════
-  # STEP 3: DEPLOY QA + REGRESSION TESTS
+  # STEP 4: DEPLOY QA + REGRESSION TESTS
   # ═════════════════════════════════════════════════════
   deploy-qa:
     name: Deploy to QA
@@ -153,56 +167,39 @@ jobs:
         run: echo "Deployed to QA ✅"
 
   regression-qa:
-    name: QA - Regression Tests
+    name: QA - Regression Tests (Docker)
     needs: deploy-qa
     runs-on: ubuntu-latest
     environment: QA
     steps:
-      - name: Checkout QA repo
-        uses: actions/checkout@v4
+      - name: Download Docker Image
+        uses: actions/download-artifact@v4
         with:
-          repository: naveenanimation20/OpenCartWebAPIFramework
+          name: docker-image
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Cache Playwright browsers
-        id: pw-cache-qa
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        if: steps.pw-cache-qa.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright OS deps only
-        if: steps.pw-cache-qa.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      - name: Load Docker Image
+        run: docker load -i pw-framework.tar
 
       - name: Run Regression Tests on QA
         run: |
           echo "========================================="
-          echo "  Running REGRESSION (all tests) on QA"
+          echo "  Running REGRESSION (all tests) on QA (Docker)"
           echo "========================================="
-          npx playwright test --project=chromium
-        env:
-          ENV: qa
-          BASE_URL: ${{ secrets.BASE_URL }}
-          USERNAME: ${{ secrets.USERNAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          GRANT_TYPE: ${{ secrets.GRANT_TYPE }}
+          mkdir -p reports allure-results
+          docker run --rm \
+            -e CI=true \
+            -e ENV=qa \
+            -e BASE_URL=${{ secrets.BASE_URL }} \
+            -e USERNAME=${{ secrets.USERNAME }} \
+            -e PASSWORD=${{ secrets.PASSWORD }} \
+            -e API_BASE_URL=${{ secrets.API_BASE_URL }} \
+            -e API_TOKEN=${{ secrets.API_TOKEN }} \
+            -e OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }} \
+            -e OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }} \
+            -e GRANT_TYPE=${{ secrets.GRANT_TYPE }} \
+            -v ${{ github.workspace }}/reports:/app/reports \
+            -v ${{ github.workspace }}/allure-results:/app/allure-results \
+            pw-framework npx playwright test --project=chromium
 
       - name: Generate Allure Report
         if: always()
@@ -227,7 +224,7 @@ jobs:
           retention-days: 30
 
   # ═════════════════════════════════════════════════════
-  # STEP 4: DEPLOY STAGE + SANITY TESTS
+  # STEP 5: DEPLOY STAGE + SANITY TESTS
   # ═════════════════════════════════════════════════════
   deploy-stage:
     name: Deploy to STAGE
@@ -238,56 +235,39 @@ jobs:
         run: echo "Deployed to STAGE ✅"
 
   sanity-stage:
-    name: STAGE - Sanity Tests
+    name: STAGE - Sanity Tests (Docker)
     needs: deploy-stage
     runs-on: ubuntu-latest
     environment: stage
     steps:
-      - name: Checkout QA repo
-        uses: actions/checkout@v4
+      - name: Download Docker Image
+        uses: actions/download-artifact@v4
         with:
-          repository: naveenanimation20/OpenCartWebAPIFramework
+          name: docker-image
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Cache Playwright browsers
-        id: pw-cache-stage
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        if: steps.pw-cache-stage.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright OS deps only
-        if: steps.pw-cache-stage.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      - name: Load Docker Image
+        run: docker load -i pw-framework.tar
 
       - name: Run Sanity Tests on STAGE
         run: |
           echo "========================================="
-          echo "  Running SANITY @smoke on STAGE"
+          echo "  Running SANITY @smoke on STAGE (Docker)"
           echo "========================================="
-          npx playwright test --project=chromium --grep @smoke
-        env:
-          ENV: stage
-          BASE_URL: ${{ secrets.BASE_URL }}
-          USERNAME: ${{ secrets.USERNAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          GRANT_TYPE: ${{ secrets.GRANT_TYPE }}
+          mkdir -p reports allure-results
+          docker run --rm \
+            -e CI=true \
+            -e ENV=stage \
+            -e BASE_URL=${{ secrets.BASE_URL }} \
+            -e USERNAME=${{ secrets.USERNAME }} \
+            -e PASSWORD=${{ secrets.PASSWORD }} \
+            -e API_BASE_URL=${{ secrets.API_BASE_URL }} \
+            -e API_TOKEN=${{ secrets.API_TOKEN }} \
+            -e OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }} \
+            -e OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }} \
+            -e GRANT_TYPE=${{ secrets.GRANT_TYPE }} \
+            -v ${{ github.workspace }}/reports:/app/reports \
+            -v ${{ github.workspace }}/allure-results:/app/allure-results \
+            pw-framework npx playwright test --project=chromium --grep @smoke
 
       - name: Generate Allure Report
         if: always()
@@ -312,7 +292,7 @@ jobs:
           retention-days: 30
 
   # ═════════════════════════════════════════════════════
-  # STEP 5: DEPLOY PROD + SMOKE TESTS
+  # STEP 6: DEPLOY PROD + SMOKE TESTS
   # ═════════════════════════════════════════════════════
   deploy-prod:
     name: Deploy to PROD
@@ -324,56 +304,39 @@ jobs:
         run: echo "Deployed to PROD ✅"
 
   smoke-prod:
-    name: PROD - Smoke Tests
+    name: PROD - Smoke Tests (Docker)
     needs: deploy-prod
     runs-on: ubuntu-latest
     environment: Prod
     steps:
-      - name: Checkout QA repo
-        uses: actions/checkout@v4
+      - name: Download Docker Image
+        uses: actions/download-artifact@v4
         with:
-          repository: naveenanimation20/OpenCartWebAPIFramework
+          name: docker-image
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: 'npm'
-
-      - name: Cache Playwright browsers
-        id: pw-cache-prod
-        uses: actions/cache@v4
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ hashFiles('package-lock.json') }}
-
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Install Playwright browsers
-        if: steps.pw-cache-prod.outputs.cache-hit != 'true'
-        run: npx playwright install --with-deps chromium
-
-      - name: Install Playwright OS deps only
-        if: steps.pw-cache-prod.outputs.cache-hit == 'true'
-        run: npx playwright install-deps chromium
+      - name: Load Docker Image
+        run: docker load -i pw-framework.tar
 
       - name: Run Smoke Tests on PROD
         run: |
           echo "========================================="
-          echo "  Running SMOKE @smoke on PROD"
+          echo "  Running SMOKE @smoke on PROD (Docker)"
           echo "========================================="
-          npx playwright test --project=chromium --grep @smoke
-        env:
-          ENV: prod
-          BASE_URL: ${{ secrets.BASE_URL }}
-          USERNAME: ${{ secrets.USERNAME }}
-          PASSWORD: ${{ secrets.PASSWORD }}
-          API_BASE_URL: ${{ secrets.API_BASE_URL }}
-          API_TOKEN: ${{ secrets.API_TOKEN }}
-          OAUTH_CLIENT_ID: ${{ secrets.OAUTH_CLIENT_ID }}
-          OAUTH_CLIENT_SECRET: ${{ secrets.OAUTH_CLIENT_SECRET }}
-          GRANT_TYPE: ${{ secrets.GRANT_TYPE }}
+          mkdir -p reports allure-results
+          docker run --rm \
+            -e CI=true \
+            -e ENV=prod \
+            -e BASE_URL=${{ secrets.BASE_URL }} \
+            -e USERNAME=${{ secrets.USERNAME }} \
+            -e PASSWORD=${{ secrets.PASSWORD }} \
+            -e API_BASE_URL=${{ secrets.API_BASE_URL }} \
+            -e API_TOKEN=${{ secrets.API_TOKEN }} \
+            -e OAUTH_CLIENT_ID=${{ secrets.OAUTH_CLIENT_ID }} \
+            -e OAUTH_CLIENT_SECRET=${{ secrets.OAUTH_CLIENT_SECRET }} \
+            -e GRANT_TYPE=${{ secrets.GRANT_TYPE }} \
+            -v ${{ github.workspace }}/reports:/app/reports \
+            -v ${{ github.workspace }}/allure-results:/app/allure-results \
+            pw-framework npx playwright test --project=chromium --grep @smoke
 
       - name: Generate Allure Report
         if: always()
@@ -395,8 +358,9 @@ jobs:
         with:
           name: prod-smoke-allure-report
           path: allure-report/
+          retention-days: 30
 
-    # ═════════════════════════════════════════════════════
+  # ═════════════════════════════════════════════════════
   # PIPELINE NOTIFICATION — GITHUB PAGES + EMAIL + SLACK
   # ═════════════════════════════════════════════════════
   notify:
@@ -444,7 +408,6 @@ jobs:
         run: |
           mkdir -p pages-deploy/runs/${{ github.run_id }}
 
-          # Create index page for this run
           cat > pages-deploy/runs/${{ github.run_id }}/index.html << 'INDEXPAGE'
           <!DOCTYPE html>
           <html>
@@ -461,11 +424,12 @@ jobs:
               .html-btn { background: #1a1a2e; }
               .allure-btn { background: #28a745; }
               .meta { color: #666; font-size: 14px; margin-bottom: 24px; }
+              .docker-badge { display: inline-block; background: #2496ED; color: white; padding: 4px 12px; border-radius: 12px; font-size: 12px; margin-left: 8px; }
             </style>
           </head>
           <body>
             <div class="container">
-              <h1>🎭 Pipeline Reports</h1>
+              <h1>🎭 Pipeline Reports <span class="docker-badge">🐳 Docker</span></h1>
               <p class="meta">Run ID: RUN_ID | Branch: BRANCH | Date: RUN_DATE</p>
 
               <div class="card">
@@ -508,7 +472,6 @@ jobs:
           sed -i "s|BRANCH|${{ github.ref_name }}|g" pages-deploy/runs/${{ github.run_id }}/index.html
           sed -i "s|RUN_DATE|$(date +'%d %b %Y, %I:%M %p UTC')|g" pages-deploy/runs/${{ github.run_id }}/index.html
 
-          # Copy reports into organized folders
           cp -r all-reports/dev-sanity-html-report/ pages-deploy/runs/${{ github.run_id }}/dev-html/ 2>/dev/null || true
           cp -r all-reports/dev-sanity-allure-report/ pages-deploy/runs/${{ github.run_id }}/dev-allure/ 2>/dev/null || true
           cp -r all-reports/qa-regression-html-report/ pages-deploy/runs/${{ github.run_id }}/qa-html/ 2>/dev/null || true
@@ -519,7 +482,6 @@ jobs:
           cp -r all-reports/prod-smoke-allure-report/ pages-deploy/runs/${{ github.run_id }}/prod-allure/ 2>/dev/null || true
 
           echo "Reports organized ✅"
-          ls -la pages-deploy/runs/${{ github.run_id }}/
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v4
@@ -542,9 +504,6 @@ jobs:
               .header { background: linear-gradient(135deg, #1a1a2e, #16213e); color: white; padding: 30px; text-align: center; }
               .header h1 { margin: 0; font-size: 24px; }
               .header p { margin: 8px 0 0; opacity: 0.8; font-size: 14px; }
-              .status-badge { display: inline-block; padding: 6px 16px; border-radius: 20px; font-weight: bold; font-size: 14px; margin-top: 12px; }
-              .pass { background: #28a745; color: white; }
-              .fail { background: #dc3545; color: white; }
               .body { padding: 24px; }
               table { width: 100%; border-collapse: collapse; margin: 16px 0; }
               th { background: #f8f9fa; text-align: left; padding: 12px 16px; font-size: 13px; color: #666; text-transform: uppercase; }
@@ -563,8 +522,8 @@ jobs:
           <body>
             <div class="container">
               <div class="header">
-                <h1>🎭 Playwright CI/CD Dashboard</h1>
-                <p>Master Pipeline Report</p>
+                <h1>🎭 Playwright CI/CD Dashboard 🐳</h1>
+                <p>Master Pipeline Report (Docker)</p>
               </div>
               <div class="body">
                 <div class="meta">
@@ -602,8 +561,8 @@ jobs:
           secure: true
           username: ${{ secrets.EMAIL_USERNAME }}
           password: ${{ secrets.EMAIL_PASSWORD }}
-          subject: "🎭 CI/CD Pipeline — ${{ steps.status.outputs.overall }} — ${{ github.ref_name }}"
-          to: sachinkorg99@gmail.com,
+          subject: "🎭 CI/CD Pipeline (Docker) — ${{ steps.status.outputs.overall }} — ${{ github.ref_name }}"
+          to: naveenanimation20@gmail.com,training@naveenautomationlabs.com,nkt.agarwal3@gmail.com,kdpatel8184@gmail.com
           from: "CI Bot <${{ secrets.EMAIL_USERNAME }}>"
           html_body: file://dashboard.html
 
@@ -617,11 +576,11 @@ jobs:
               "blocks": [
                 {
                   "type": "header",
-                  "text": { "type": "plain_text", "text": "🎭 Playwright CI/CD Pipeline Report" }
+                  "text": { "type": "plain_text", "text": "🎭 Playwright CI/CD Pipeline Report 🐳" }
                 },
                 {
                   "type": "section",
-                  "text": { "type": "mrkdwn", "text": "*Overall: ${{ steps.status.outputs.overall }}*\n\n*Branch:* `${{ github.ref_name }}`  |  *Triggered by:* `${{ github.actor }}`" }
+                  "text": { "type": "mrkdwn", "text": "*Overall: ${{ steps.status.outputs.overall }}*\n*Mode:* `Docker Containers`\n*Branch:* `${{ github.ref_name }}`  |  *Triggered by:* `${{ github.actor }}`" }
                 },
                 { "type": "divider" },
                 {
@@ -653,7 +612,7 @@ jobs:
       - name: Pipeline Summary
         run: |
           echo "═══════════════════════════════════════════"
-          echo "       MASTER CI/CD PIPELINE SUMMARY"
+          echo "  MASTER CI/CD PIPELINE SUMMARY (DOCKER)"
           echo "═══════════════════════════════════════════"
           echo "  Build + Unit:    ${{ needs.build.result }}"
           echo "  DEV Sanity:      ${{ needs.sanity-dev.result }}"
@@ -661,4 +620,4 @@ jobs:
           echo "  STAGE Sanity:    ${{ needs.sanity-stage.result }}"
           echo "  PROD Smoke:      ${{ needs.smoke-prod.result }}"
           echo "  Reports:         ${{ steps.status.outputs.report_url }}/index.html"
-          echo "═══════════════════════════════════════════"        
+          echo "═══════════════════════════════════════════"
