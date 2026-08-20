@@ -26,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          repository: sachinkorg99/Playwright_NAL
+          repository: naveenanimation20/OpenCartWebAPIFramework
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
