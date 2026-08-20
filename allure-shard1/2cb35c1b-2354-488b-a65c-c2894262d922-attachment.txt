@@ -1,0 +1,38 @@
+{
+  id: 8582677,
+  name: 'james',
+  email: 'automation_1787122038224@test.com',
+  gender: 'male',
+  status: 'active'
+}
+201
+Created
+{
+  date: 'Wed, 19 Aug 2026 06:47:16 GMT',
+  'content-type': 'application/json; charset=utf-8',
+  'content-length': '107',
+  connection: 'keep-alive',
+  'cache-control': 'max-age=0, private, must-revalidate',
+  'content-security-policy-report-only': "default-src 'self'; script-src 'self' https://pagead2.googlesyndication.com 'nonce-N20kWV2G1qUusx3Xho/lOg=='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: https:; font-src 'self' https://fonts.gstatic.com; connect-src 'self' https://pagead2.googlesyndication.com https://ep1.adtrafficquality.google; frame-src https://googleads.g.doubleclick.net https://ep2.adtrafficquality.google https://www.google.com; object-src 'none'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'",
+  etag: 'W/"447951b3e7b265132c52c3f11d9ae933"',
+  'feature-policy': "camera 'none'; gyroscope 'none'; microphone 'none'; usb 'none'; fullscreen 'self'",
+  location: 'https://gorest.co.in/public/v2/users/8582677',
+  'referrer-policy': 'strict-origin-when-cross-origin',
+  'strict-transport-security': 'max-age=63072000; includeSubDomains',
+  vary: 'Origin',
+  'x-content-type-options': 'nosniff',
+  'x-frame-options': 'SAMEORIGIN',
+  'x-permitted-cross-domain-policies': 'none',
+  'x-ratelimit-limit': '300',
+  'x-ratelimit-remaining': '299',
+  'x-ratelimit-reset': '0',
+  'x-request-id': 'ee8449a8-7a43-42b3-a5bd-fc1a6a6dcb27',
+  'x-runtime': '0.040399',
+  'x-xss-protection': '0',
+  nel: '{"report_to":"cf-nel","success_fraction":0.0,"max_age":604800}',
+  'cf-cache-status': 'DYNAMIC',
+  'report-to': '{"group":"cf-nel","max_age":604800,"endpoints":[{"url":"https://a.nel.cloudflare.com/report/v4?s=YIusg0NEwo6HuniA567MKEl7yy0fnlPip6lpu4KqXZM%2B%2B6U9QeLr3UeYzA2BMauGOc3OylPd2yWeQysKhPSgg00BEjb04gSqn9EoplHVosIojgVIFyOA2ZD8DNDIY94%3D"}]}',
+  server: 'cloudflare',
+  'cf-ray': 'a2d734b82b15dc31-MRS',
+  'alt-svc': 'h3=":443"; ma=86400'
+}

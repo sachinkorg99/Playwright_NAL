@@ -1,0 +1,74 @@
+[
+  {
+    id: 8582676,
+    name: 'uday',
+    email: 'automation_1787122031962@open.com',
+    gender: 'male',
+    status: 'active'
+  },
+  {
+    id: 8582652,
+    name: 'uday',
+    email: 'automation_1787120167593@open.com',
+    gender: 'male',
+    status: 'active'
+  },
+  {
+    id: 8582584,
+    name: 'Devadatt Khatri',
+    email: 'devadatt_khatri@kohler.example',
+    gender: 'female',
+    status: 'inactive'
+  },
+  {
+    id: 8582583,
+    name: 'Dhatri Gandhi',
+    email: 'dhatri_gandhi@towne.test',
+    gender: 'female',
+    status: 'active'
+  },
+  {
+    id: 8582582,
+    name: 'Jaya Mishra',
+    email: 'jaya_mishra@sawayn.example',
+    gender: 'male',
+    status: 'active'
+  },
+  {
+    id: 8582581,
+    name: 'Chidambar Khatri',
+    email: 'chidambar_khatri@ohara.test',
+    gender: 'female',
+    status: 'active'
+  },
+  {
+    id: 8582579,
+    name: 'Agnimitra Dubashi',
+    email: 'agnimitra_dubashi@weissnat.example',
+    gender: 'female',
+    status: 'inactive'
+  },
+  {
+    id: 8582578,
+    name: 'Mrs. Akshita Guneta',
+    email: 'akshita_guneta_mrs@schowalter.test',
+    gender: 'female',
+    status: 'active'
+  },
+  {
+    id: 8582518,
+    name: 'Rageswari Varrier II',
+    email: 'ii_rageswari_varrier@monahan.example',
+    gender: 'female',
+    status: 'inactive'
+  },
+  {
+    id: 8582497,
+    name: 'Bhagvan Singh',
+    email: 'bhagvan_singh@kemmer-pollich.test',
+    gender: 'male',
+    status: 'inactive'
+  }
+]
+200
+OK
